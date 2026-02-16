@@ -1,14 +1,14 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { AppState, EvaluationResult, BatchItem } from './types';
-import { evaluateAssignment } from './geminiService';
+import { evaluateAssignment, listAvailableModels } from './geminiService';
 import * as mammoth from 'mammoth';
-import { 
-  FileUp, 
-  Loader2, 
-  CheckCircle2, 
-  AlertCircle, 
-  Clipboard, 
+import {
+  FileUp,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Clipboard,
   GraduationCap,
   History,
   Info,
@@ -20,8 +20,88 @@ import {
   Users,
   Edit2,
   Eye,
-  EyeOff
+  EyeOff,
+  Key,
+  ShieldAlert,
+  Server
 } from 'lucide-react';
+
+const ApiKeyInput: React.FC<{ apiKey: string, setApiKey: (key: string) => void }> = ({ apiKey, setApiKey }) => {
+  const [show, setShow] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+
+  const checkModels = async () => {
+    setLoadingModels(true);
+    setModelError(null);
+    setModels([]);
+    try {
+      const available = await listAvailableModels(apiKey);
+      setModels(available);
+    } catch (err: any) {
+      setModelError(err.message || "Failed to list models");
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  return (
+    <div className="mb-8 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="p-2 bg-white rounded-lg shadow-sm text-indigo-600">
+          <Key size={20} />
+        </div>
+        <div className="flex-1">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Gemini API Key</label>
+          <div className="relative">
+            <input
+              type={show ? "text" : "password"}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Enter your Gemini API Key..."
+              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-indigo-400 transition-colors"
+            />
+            <button
+              onClick={() => setShow(!show)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              {show ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={checkModels}
+          disabled={!apiKey || loadingModels}
+          className="text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+        >
+          {loadingModels ? <Loader2 size={12} className="animate-spin" /> : <Server size={12} />}
+          Check Available Models
+        </button>
+      </div>
+
+      {modelError && (
+        <div className="mt-3 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100">
+          {modelError}
+        </div>
+      )}
+
+      {models.length > 0 && (
+        <div className="mt-3 bg-slate-900 rounded-lg p-3 text-xs font-mono text-green-400 overflow-x-auto">
+          <p className="text-slate-400 mb-2 font-sans font-bold">Available Models:</p>
+          <ul className="space-y-1">
+            {models.map(m => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // --- Name Extraction Utilities ---
 const getSuggestedName = (fileName: string, text?: string): string => {
@@ -38,16 +118,16 @@ const getSuggestedName = (fileName: string, text?: string): string => {
       }
     }
   }
-  
+
   // 2. Fallback to filename analysis
   let name = fileName.replace(/\.[^/.]+$/, ""); // Remove extension
   name = name.replace(/[_-]/g, " "); // Replace separators
   // Remove common academic prefixes
   name = name.replace(/assignment|module|unit|evaluation|assessment|saïd|oxford|school|feedback/gi, "").trim();
-  
+
   // Clean digits and extra whitespace
   name = name.replace(/\d+/g, "").replace(/\s+/g, " ").trim();
-  
+
   if (!name) return "Unknown Student";
 
   // Capitalize properly
@@ -82,7 +162,7 @@ const Header: React.FC = () => (
   </header>
 );
 
-const BatchUpload: React.FC<{ onStartBatch: (items: BatchItem[]) => void }> = ({ onStartBatch }) => {
+const BatchUpload: React.FC<{ onStartBatch: (items: BatchItem[]) => void, apiKey: string, setApiKey: (key: string) => void }> = ({ onStartBatch, apiKey, setApiKey }) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isReading, setIsReading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -112,7 +192,7 @@ const BatchUpload: React.FC<{ onStartBatch: (items: BatchItem[]) => void }> = ({
         } else {
           text = await file.text();
         }
-        
+
         items.push({
           id: Math.random().toString(36).substr(2, 9),
           fileName: file.name,
@@ -138,11 +218,13 @@ const BatchUpload: React.FC<{ onStartBatch: (items: BatchItem[]) => void }> = ({
             <p className="text-slate-500 mt-3 text-lg">Upload up to 10 assignments at once.</p>
           </div>
 
-          <div 
+          <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} />
+
+          <div
             onClick={() => fileInputRef.current?.click()}
             className="border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer group mb-8"
           >
-            <input type="file" ref={fileInputRef} multiple onChange={handleFileChange} className="hidden" accept=".docx,.txt,.md"/>
+            <input type="file" ref={fileInputRef} multiple onChange={handleFileChange} className="hidden" accept=".docx,.txt,.md" />
             <div className="bg-indigo-50 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform shadow-sm border border-indigo-100">
               <FileUp className="text-indigo-600" size={40} />
             </div>
@@ -175,7 +257,7 @@ const BatchUpload: React.FC<{ onStartBatch: (items: BatchItem[]) => void }> = ({
 
           <button
             onClick={processFiles}
-            disabled={selectedFiles.length === 0 || isReading}
+            disabled={selectedFiles.length === 0 || isReading || !apiKey}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-5 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-3 text-lg"
           >
             {isReading ? <Loader2 className="animate-spin" /> : <ChevronRight size={24} />}
@@ -195,7 +277,7 @@ const ProcessingQueue: React.FC<{ items: BatchItem[] }> = ({ items }) => {
     <div className="max-w-2xl mx-auto mt-20 p-4">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-10 text-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-50">
-          <div className="h-full bg-indigo-600 transition-all duration-500" style={{ width: `${progress}%` }}/>
+          <div className="h-full bg-indigo-600 transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
 
         <div className="mb-8 flex flex-col items-center">
@@ -208,9 +290,8 @@ const ProcessingQueue: React.FC<{ items: BatchItem[] }> = ({ items }) => {
 
         <div className="space-y-4 text-left max-h-[400px] overflow-y-auto px-2">
           {items.map((item) => (
-            <div key={item.id} className={`p-5 rounded-2xl border transition-all flex items-center justify-between ${
-                item.status === 'evaluating' ? 'bg-indigo-50 border-indigo-200' : 
-                item.status === 'completed' ? 'bg-green-50/50 border-green-100' : 'bg-slate-50 border-slate-100 opacity-60'
+            <div key={item.id} className={`p-5 rounded-2xl border transition-all flex items-center justify-between ${item.status === 'evaluating' ? 'bg-indigo-50 border-indigo-200' :
+              item.status === 'completed' ? 'bg-green-50/50 border-green-100' : 'bg-slate-50 border-slate-100 opacity-60'
               }`}>
               <div className="flex items-center gap-4 overflow-hidden">
                 <div className={`p-2 rounded-lg ${item.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-400'}`}>
@@ -255,8 +336,8 @@ Agustin Rubini`;
   };
 
   const handleCopyCurrent = () => {
-    if (currentItem.result) {
-      navigator.clipboard.writeText(getFullText(currentItem));
+    if (currentItem.result?.feedback) {
+      navigator.clipboard.writeText(currentItem.result.feedback);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -294,9 +375,8 @@ Agustin Rubini`;
         <aside className="lg:w-80 space-y-2">
           {items.map((item, i) => (
             <button key={item.id} onClick={() => { setActiveTab(i); setShowOriginal(false); setIsEditingName(false); }}
-              className={`w-full text-left p-5 rounded-2xl transition-all border flex items-center justify-between group ${
-                activeTab === i ? 'bg-white border-indigo-200 shadow-md' : 'bg-transparent border-transparent hover:bg-white/50 text-slate-500'
-              }`}>
+              className={`w-full text-left p-5 rounded-2xl transition-all border flex items-center justify-between group ${activeTab === i ? 'bg-white border-indigo-200 shadow-md' : 'bg-transparent border-transparent hover:bg-white/50 text-slate-500'
+                }`}>
               <div className="overflow-hidden">
                 <p className={`text-sm font-bold truncate ${activeTab === i ? 'text-indigo-900' : 'text-slate-700'}`}>
                   {item.result?.studentName || item.suggestedName || item.fileName}
@@ -318,8 +398,8 @@ Agustin Rubini`;
                   <div className="flex-1 mr-4">
                     {isEditingName ? (
                       <div className="flex items-center gap-2">
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           autoFocus
                           defaultValue={currentItem.result.studentName}
                           onBlur={(e) => { onUpdateName(currentItem.id, e.target.value); setIsEditingName(false); }}
@@ -351,7 +431,7 @@ Agustin Rubini`;
                             <span className="text-sm font-black text-indigo-600">{score.score}<span className="text-slate-300 text-[10px]">/{score.maxScore}</span></span>
                           </div>
                           <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                            <div className="bg-indigo-500 h-full rounded-full transition-all duration-1000" style={{ width: `${(score.score / score.maxScore) * 100}%` }}/>
+                            <div className="bg-indigo-500 h-full rounded-full transition-all duration-1000" style={{ width: `${(score.score / score.maxScore) * 100}%` }} />
                           </div>
                         </div>
                       ))}
@@ -363,7 +443,7 @@ Agustin Rubini`;
                       <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Feedback Statement</h3>
                       <div className="flex gap-2">
                         <button onClick={() => setShowOriginal(!showOriginal)} className="flex items-center gap-2 text-xs text-slate-500 font-bold hover:text-slate-700 transition-colors px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100">
-                          {showOriginal ? <EyeOff size={16}/> : <Eye size={16}/>}
+                          {showOriginal ? <EyeOff size={16} /> : <Eye size={16} />}
                           {showOriginal ? "Hide Original" : "Show Submission"}
                         </button>
                         <button onClick={handleCopyCurrent} className="flex items-center gap-2 text-xs text-indigo-600 font-bold hover:text-indigo-700 transition-colors px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100">
@@ -379,12 +459,64 @@ Agustin Rubini`;
                     ) : (
                       <div className="prose prose-slate max-w-none whitespace-pre-wrap text-slate-700 text-base leading-relaxed italic font-medium">
                         {currentItem.result.feedback}
-                        <div className="mt-8 pt-8 border-t border-slate-200 text-slate-500 text-sm font-bold not-italic">
-                          Kind regards,<br />
-                          Agustin Rubini
-                        </div>
                       </div>
                     )}
+                  </section>
+
+                  {/* Bookmarklet Data Table Section */}
+                  <section className="bg-slate-50 p-8 rounded-3xl border border-slate-200">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Data for Bookmarklet</h3>
+                      <button
+                        onClick={() => {
+                          // Construct array: [Name, Score1, Score2, ..., ScoreN, Feedback]
+                          const dataToExport = [
+                            currentItem.result.studentName,
+                            ...currentItem.result.scores.map(s => s.score),
+                            currentItem.result.feedback
+                          ];
+                          const jsonString = JSON.stringify(dataToExport);
+                          localStorage.setItem('studentData', jsonString);
+
+                          navigator.clipboard.writeText(jsonString).then(() => {
+                            alert(`Data for ${currentItem.result.studentName} copied to CLIPBOARD! \n\nYou can now go to Moodle, click the bookmarklet, and paste.`);
+                          }).catch(err => {
+                            console.error('Failed to copy: ', err);
+                            alert("Failed to copy to clipboard. Please copy manually from the table below.");
+                          });
+                        }}
+                        className="flex items-center gap-2 text-xs text-indigo-600 font-bold hover:text-indigo-700 transition-colors px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100"
+                      >
+                        <TypeIcon size={16} /> Copy for Form
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left text-slate-600">
+                        <thead className="text-xs text-slate-400 uppercase bg-slate-100/50">
+                          <tr>
+                            <th className="px-4 py-3 rounded-l-lg">Name</th>
+                            {currentItem.result.scores.map((s, i) => (
+                              <th key={i} className="px-4 py-3">S{i + 1}: {s.categoryName.split(' ')[0]}...</th>
+                            ))}
+                            <th className="px-4 py-3 rounded-r-lg">Feedback</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-white border-b border-slate-100">
+                            <td className="px-4 py-3 font-bold text-slate-800">{currentItem.result.studentName}</td>
+                            {currentItem.result.scores.map((s, i) => (
+                              <td key={i} className="px-4 py-3 font-mono text-indigo-600">{s.score}</td>
+                            ))}
+                            <td className="px-4 py-3 italic text-slate-400 truncate max-w-xs">{currentItem.result.feedback.substring(0, 50)}...</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <p className="mt-3 text-[10px] text-slate-400">
+                        * This table shows the exact data that will be available to your bookmarklet.
+                        Array Format: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">[Name, Score 1...N, Feedback]</code>
+                      </p>
+                    </div>
                   </section>
                 </div>
               </div>
@@ -395,10 +527,11 @@ Agustin Rubini`;
               <p className="text-slate-500 font-bold">Failed to evaluate this entry.</p>
               {currentItem.error && <p className="text-red-500 text-sm mt-2">{currentItem.error}</p>}
             </div>
-          )}
-        </main>
-      </div>
-    </div>
+          )
+          }
+        </main >
+      </div >
+    </div >
   );
 };
 
@@ -406,6 +539,11 @@ export default function App() {
   const [state, setState] = useState<AppState>(AppState.IDLE);
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
+
+  React.useEffect(() => {
+    localStorage.setItem("gemini_api_key", apiKey);
+  }, [apiKey]);
 
   const processBatch = useCallback(async (items: BatchItem[]) => {
     setBatchItems(items);
@@ -419,7 +557,7 @@ export default function App() {
 
       try {
         if (!item.text) throw new Error("Empty file content");
-        const evaluation = await evaluateAssignment(item.text, item.fileName, item.suggestedName);
+        const evaluation = await evaluateAssignment(item.text, item.fileName, apiKey, item.suggestedName);
         updatedItems[i] = { ...updatedItems[i], status: 'completed', result: evaluation };
       } catch (err: any) {
         updatedItems[i] = { ...updatedItems[i], status: 'error', error: err.message };
@@ -427,7 +565,7 @@ export default function App() {
       setBatchItems([...updatedItems]);
     }
     setState(AppState.RESULTS);
-  }, []);
+  }, [apiKey]);
 
   const handleUpdateName = (id: string, newName: string) => {
     setBatchItems(prev => prev.map(item => {
@@ -448,7 +586,7 @@ export default function App() {
     <div className="min-h-screen pb-12 bg-[#f8f9fc]">
       <Header />
       <main className="container mx-auto">
-        {state === AppState.IDLE && <BatchUpload onStartBatch={processBatch} />}
+        {state === AppState.IDLE && <BatchUpload onStartBatch={processBatch} apiKey={apiKey} setApiKey={setApiKey} />}
         {state === AppState.PROCESSING_BATCH && <ProcessingQueue items={batchItems} />}
         {state === AppState.RESULTS && <BatchResults items={batchItems} onReset={handleReset} onUpdateName={handleUpdateName} />}
         {state === AppState.ERROR && (
