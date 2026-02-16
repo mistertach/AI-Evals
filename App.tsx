@@ -535,7 +535,79 @@ Agustin Rubini`;
   );
 };
 
+const PasswordGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem("app_auth") === "true");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(false);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === "Bronze89") {
+      setIsAuthenticated(true);
+      sessionStorage.setItem("app_auth", "true");
+      setError(false);
+    } else {
+      setError(true);
+    }
+  };
+
+  if (isAuthenticated) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+        <div className="text-center mb-8">
+          <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <ShieldAlert className="text-white" size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800">Restricted Access</h1>
+          <p className="text-slate-500 text-sm mt-2">Oxford Saïd Evaluation Engine</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Access Code</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-800"
+              placeholder="Enter password..."
+              autoFocus
+            />
+          </div>
+
+          {error && (
+            <div className="text-red-500 text-xs font-bold bg-red-50 p-3 rounded-lg border border-red-100 flex items-center gap-2">
+              <AlertCircle size={14} />
+              Incorrect access code
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2 group"
+          >
+            Enter System
+            <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
+  return (
+    <PasswordGate>
+      <AppContent />
+    </PasswordGate>
+  );
+}
+
+function AppContent() {
   const [state, setState] = useState<AppState>(AppState.IDLE);
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [error, setError] = useState<string | null>(null);
