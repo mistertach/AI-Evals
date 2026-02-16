@@ -671,7 +671,7 @@ function AppContent() {
         )}
       </main>
       <footer className="fixed bottom-0 left-0 right-0 bg-white/60 backdrop-blur-xl border-t border-slate-200 p-4 flex justify-center z-10">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">&copy; 2024 Oxford Saïd Business School Evaluation Engine | Agustin Rubini System</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">&copy; 2024 Oxford Saïd Business School Evaluation Engine | Agustin Rubini System v1.1</p>
       </footer>
     </div>
   );
