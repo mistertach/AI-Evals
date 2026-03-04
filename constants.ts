@@ -49,6 +49,7 @@ export const MODULES_RUBRICS: ModuleRubric[] = [
     title: "Leveraging GenAI and safety",
     totalMarks: 24,
     categories: [
+      { id: "adherence", name: "Adherence to the instructions", maxScore: 4 },
       { id: "q1", name: "Application of generative AI to the organisation (Q1)", maxScore: 8 },
       { id: "q2", name: "Identification of safety measures for generative AI (Q2)", maxScore: 8 },
       { id: "adherence_clarity", name: "Adherence to the brief and clarity of writing", maxScore: 8 }
